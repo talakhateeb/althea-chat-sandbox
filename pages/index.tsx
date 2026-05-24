@@ -1,31 +1,215 @@
-{ useRef, useState } from "react"; type Msg = { role: "user" | "assistant"; content: string };
-export default function Home() { const [msgs, setMsgs] = useState<Msg[]>([ { role: "assistant", content: "Welcome to Althea Chat — a quiet place to reflect. What would help: reflection, focus, or a gentle check‑in?" } ]); const [input, setInput] = useState(""); const [sending, setSending] = useState(false); const outRef = useRef(null);
+import React, { useRef, useState } from "react";
 
-async function send() { const text = input.trim(); if (!text || sending) return; const history = [...msgs, { role: "user", content: text }]; setMsgs(history); setInput(""); setSending(true);
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+};
 
+export default function Home() {
+  const [msgs, setMsgs] = useState<Msg[]>([
+    {
+      role: "assistant",
+      content:
+        "Welcome to Althea — a quiet space to check in with yourself. What’s on your mind today?"
+    }
+  ]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const outRef = useRef<HTMLDivElement | null>(null);
 
+  async function send() {
+    const text = input.trim();
+    if (!text || sending) return;
 
-const res = await fetch("/api/chat", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ messages: history })
-});
-const reader = res.body!.getReader();
-const decoder = new TextDecoder();
-let acc = "";
-setMsgs(h => [...h, { role: "assistant", content: "" }]);
-for (;;) {
-  const { value, done } = await reader.read();
-  if (done) break;
-  acc += decoder.decode(value);
-  setMsgs(h => {
-    const copy = [...h];
-    copy[copy.length - 1] = { role: "assistant", content: acc };
-    return copy;
-  });
-  outRef.current?.scrollTo(0, outRef.current.scrollHeight);
+    const history: Msg[] = [...msgs, { role: "user", content: text }];
+    setMsgs(history);
+    setInput("");
+    setSending(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history })
+      });
+
+      if (!res.body) {
+        // fallback if streaming is not available
+        const data = await res.json();
+        setMsgs(h => [...h, { role: "assistant", content: data.reply ?? "" }]);
+        setSending(false);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+
+      // start empty assistant message to stream into
+      setMsgs(h => [...h, { role: "assistant", content: "" }]);
+
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+
+        setMsgs(h => {
+          const copy = [...h];
+          copy[copy.length - 1] = { role: "assistant", content: acc };
+          return copy;
+        });
+
+        if (outRef.current) {
+          outRef.current.scrollTo(0, outRef.current.scrollHeight);
+        }
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        background: "radial-gradient(circle at top, #2d1458 0, #050008 55%, #000 100%)",
+        color: "#e5e0ff",
+        minHeight: "100vh",
+        display: "grid",
+        gridTemplateRows: "auto 1fr auto",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          padding: "20px 24px",
+          borderBottom: "1px solid rgba(177, 138, 230, 0.25)",
+          backdropFilter: "blur(10px)",
+          background: "linear-gradient(to right, rgba(5,0,16,0.9), rgba(18,5,39,0.9))",
+          position: "sticky",
+          top: 0,
+          zIndex: 10
+        }}
+      >
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 22,
+              fontWeight: 600,
+              color: "#f4e8ff"
+            }}
+          >
+            Welcome to Althea
+          </h1>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: 14,
+              color: "#b8a8e8"
+            }}
+          >
+            What&apos;s on your mind? This is a gentle space for reflection, not a
+            substitute for professional care.
+          </p>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <div
+        ref={outRef}
+        style={{
+          padding: "16px 24px 0",
+          overflowY: "auto"
+        }}
+      >
+        <div style={{ maxWidth: 720, margin: "0 auto 24px" }}>
+          {msgs.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                margin: "12px 0",
+                display: "flex",
+                justifyContent: m.role === "user" ? "flex-end" : "flex-start"
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "80%",
+                  padding: "10px 12px",
+                  borderRadius:
+                    m.role === "user"
+                      ? "16px 4px 16px 16px"
+                      : "4px 16px 16px 16px",
+                  background:
+                    m.role === "user"
+                      ? "#b18ae6"
+                      : "rgba(13, 4, 33, 0.95)",
+                  color: m.role === "user" ? "#14071f" : "#f3ebff",
+                  boxShadow:
+                    m.role === "user"
+                      ? "0 0 0 1px rgba(255,255,255,0.08)"
+                      : "0 0 0 1px rgba(126, 96, 198, 0.35)",
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap"
+                }}
+              >
+                {m.content}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Input area */}
+      <div
+        style={{
+          borderTop: "1px solid #1b102d",
+          padding: "12px 16px 20px",
+          background:
+            "linear-gradient(to top, rgba(5,0,16,0.95), rgba(5,0,16,0.85))"
+        }}
+      >
+        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: 8 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && send()}
+            placeholder="Share a thought, a worry, or something you’re grateful for…"
+            style={{
+              flex: 1,
+              padding: "12px 14px",
+              borderRadius: 999,
+              background: "#0b0618",
+              border: "1px solid #332153",
+              color: "#f5f1ff",
+              fontSize: 14,
+              outline: "none",
+              boxShadow: "0 0 0 1px rgba(0,0,0,0.4)"
+            }}
+          />
+          <button
+            onClick={send}
+            disabled={sending}
+            style={{
+              background: sending
+                ? "rgba(177, 138, 230, 0.5)"
+                : "linear-gradient(135deg, #d3b4ff, #b18ae6)",
+              color: "#1b0b30",
+              fontWeight: 600,
+              fontSize: 14,
+              padding: "12px 18px",
+              border: "none",
+              borderRadius: 999,
+              cursor: sending ? "default" : "pointer",
+              minWidth: 80
+            }}
+          >
+            {sending ? "…" : "Send"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
-setSending(false);
-}
-
-return ( <div style={{ background:"#000", color:"#ddd", minHeight:"100vh", display:"grid", gridTemplateRows:"1fr auto", fontFamily:"Inter, system-ui" }}> <div ref={outRef} style={{ padding:24, overflowY:"auto" }}> <h1 style={{ color:"#b18ae6", margin:0 }}>Althea Chat — Test {msgs.map((m,i)=>( <div key={i} style={{ margin:"12px 0", maxWidth:720 }}> <div style={{ fontSize:12, color:m.role==="assistant"?"#b18ae6":"#9aa0a6", marginBottom:6 }}>{m.role} <div style={{ whiteSpace:"pre-wrap", lineHeight:1.6 }}>{m.content} ))} <div style={{ display:"flex", gap:8, padding:16, borderTop:"1px solid #1b1b1b" }}> <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Type here…" style={{ flex:1, padding:12, borderRadius:10, background:"#0b0b0b", border:"1px solid #202020", color:"#eee" }} /> <button onClick={send} disabled={sending} style={{ background:"#b18ae6", color:"#000", fontWeight:700, padding:"12px 16px", border:"none", borderRadius:10 }}> {sending ? "…" : "Send"} ); }
