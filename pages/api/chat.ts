@@ -1,13 +1,15 @@
-
 import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) { if (req.method !== "POST") return res.status(405).end();
 
-console.log("HAS_KEY", !!process.env.OPENAI_API_KEY);
-                                                                                  
-const url = "
-api.openai.com
+const url = "api.openai.com
 ";
+
+
+try { const { messages = [] } = (req.body as any) || {};
+
+
+
 const r = await fetch(url, {
   method: "POST",
   headers: {
