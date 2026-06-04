@@ -1,11 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
-  try {
-    const { messages = [] } = (req.body as any) || {};
-    const r = await fetch(
-  "https://api.openai.com/v1/chat/completions",
-  {
+  const { messages = [] } = req.body || {};
+  const response = await fetch("[api.openai.com](https://api.openai.com/v1/chat/completions)", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -16,20 +13,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       messages: [
         {
           role: "system",
-          content:
-            "You are Althea's guide: warm, calm, and supportive, but not a replacement for professional mental health care.",
+          content: "You are Althea's guide: warm, calm, and supportive, but not a replacement for professional mental health care.",
         },
         ...messages.slice(-12),
       ],
       temperature: 0.6,
     }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    return res.status(response.status).json({ error: data?.error?.message || "OpenAI error" });
   }
-);
-    const text = await r.text();
-    if (!r.ok) return res.status(500).json({ error: "upstream", status: r.status, text });
-    res.setHeader("Content-Type", "application/json");
-    return res.status(200).send(text);
-  } catch (e: any) {
-    return res.status(500).json({ error: "handler", message: String(e?.message || e) });
-  }
+  const reply = data.choices?.[0]?.message?.content ?? "";
+  return res.status(200).json({ reply });
 }
