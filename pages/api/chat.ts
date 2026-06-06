@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
   try {
     const { messages = [] } = (req.body as any) || {};
-    const r = await fetch("[api.openai.com](https://api.openai.com/v1/chat/completions)", {
+    const r = await fetch("https:" + "//api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
