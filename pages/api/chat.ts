@@ -10,48 +10,38 @@ export default async function handler(
 
   const { messages = [] } = (req.body as any) || {};
 
-  const upstream = await fetch("[api.openai.com](https://api.openai.com/v1/responses)", {
+  // FIX 1: correct URL — was a broken markdown link
+  // FIX 2: use /v1/chat/completions + messages (stable, matches your frontend)
+  // FIX 3: removed stream:true — frontend expects JSON, not SSE chunks
+
+  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model: "gpt-4o-mini",
       temperature: 0.6,
-      max_output_tokens: 400,
-      input: [
+      max_tokens: 400,
+      messages: [
         {
           role: "system",
-          content:
-            "You are Althea’s guide: warm, calm, and supportive, but not a replacement for professional mental health care."
+          content: "You are Althea's guide: warm, calm, and supportive, but not a replacement for professional mental health care.",
         },
-        ...messages.slice(-12)
+        ...messages.slice(-12),
       ],
-      stream: true
-    })
+    }),
   });
 
-  if (!upstream.ok || !upstream.body) {
+  if (!upstream.ok) {
     const text = await upstream.text();
     return res.status(500).json({ error: text || "Upstream error" });
   }
 
-  res.writeHead(200, {
-    "Content-Type": "text/plain; charset=utf-8",
-    "Transfer-Encoding": "chunked"
-  });
+  const data = await upstream.json();
+  // FIX 4: extract the reply text and return clean JSON
 
-  const reader = upstream.body.getReader();
-  const decoder = new TextDecoder();
-
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    res.write(chunk);
-  }
-
-  res.end();
+  const reply = data.choices?.[0]?.message?.content || "No response";
+  return res.status(200).json({ reply });
 }
-
