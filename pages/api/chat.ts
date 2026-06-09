@@ -10,23 +10,33 @@ export default async function handler(
 
   const { messages = [] } = (req.body as any) || {};
 
-  const upstream = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 400,
-      system: "You are Althea's guide: warm, calm, and supportive, but not a replacement for professional mental health care.",
-      messages: messages.slice(-12).map((m: any) => ({
-        role: m.role,
-        content: m.content,
-      })),
-    }),
-  });
+  const lastMessages = messages.slice(-12).map((m: any) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  const upstream = await fetch(
+    "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.HF_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "mistralai/Mistral-7B-Instruct-v0.3",
+        messages: [
+          {
+            role: "system",
+            content: "You are Althea's guide: warm, calm, and supportive, but not a replacement for professional mental health care.",
+          },
+          ...lastMessages,
+        ],
+        max_tokens: 400,
+        temperature: 0.6,
+      }),
+    }
+  );
 
   if (!upstream.ok) {
     const text = await upstream.text();
@@ -34,6 +44,6 @@ export default async function handler(
   }
 
   const data = await upstream.json();
-  const reply = data.content?.[0]?.text || "No response";
+  const reply = data.choices?.[0]?.message?.content || "No response";
   return res.status(200).json({ reply });
 }
