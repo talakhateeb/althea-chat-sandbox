@@ -1,6 +1,6 @@
 {
-  "name": "althea-chat-sandbox",
-  "private": true,
+  "name": "althea-chat",
+  "version": "1.0.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,9 +12,9 @@
     "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/react": "^18.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "20.12.7",
+    "@types/react": "18.2.79",
+    "typescript": "5.4.5"
   }
 }
 
